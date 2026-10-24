@@ -9,6 +9,17 @@ Self-hosted LLM platform on Kubernetes (EKS).
 
 All infrastructure is defined as Terraform, split into four small stacks applied in order.
 
+## Architecture
+![Architecture: requests flow left to right; vLLM metrics size the GPU pool](docs/architecture.png)
+
+Requests enter through API Gateway (API key, throttling, 29 s timeout), cross a VPC Link to an internal NLB, and
+reach `rag-api`, which embeds with TEI, retrieves from Qdrant and sends prompt plus context to vLLM on the GPU
+pool. Prometheus scrapes vLLM's `/metrics`; KEDA scales vLLM replicas on queue depth, and Karpenter adds a `g6`
+node when a GPU pod is pending.
+
+The diagram shows the target design. The TEI model is set by `tei_model` in `02-apps/terraform.tfvars`
+(currently `BAAI/bge-base-en-v1.5`), and OpenCost is not installed yet (see [Known Gaps](#known-gaps)).
+
 ## Repository Layout
 ```
 llm-lab/
@@ -18,6 +29,7 @@ llm-lab/
 ├── 01-platform/   # Helm charts: Karpenter, LB controller, device plugin, Prometheus, KEDA, Qdrant
 ├── 02-apps/       # manifests/{karpenter,llm,rag}: NodePools, vLLM, TEI, KEDA, alerts, rag-api
 ├── 03-gateway/    # API Gateway REST API, VPC Link, usage plan
+├── docs/          # architecture diagram
 └── rag-api/       # FastAPI source + Dockerfile
 ```
 
