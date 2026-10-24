@@ -56,9 +56,9 @@ flowchart LR
     tfvars["terraform.tfvars<br/>images, vllm, gpu_node_pool…"]
     vars["variables.tf<br/>types + validation"]
     rs["terraform_remote_state<br/>00-infra / 01-platform outputs<br/>ECR URL, node role, prometheus_url"]
-    call["module call<br/>manifest_dir + template_vars"]
-    tfvars --> vars --> call
-    rs --> call
+    modcall["module call<br/>manifest_dir + template_vars"]
+    tfvars --> vars --> modcall
+    rs --> modcall
   end
 
   subgraph mod["modules/k8s-manifests"]
@@ -70,8 +70,8 @@ flowchart LR
     files --> fs --> tpl --> yd --> km
   end
 
-  call -- template_vars --> tpl
-  call -- manifest_dir --> fs
+  modcall -- "template_vars" --> tpl
+  modcall -- "manifest_dir" --> fs
 
   subgraph tf["Terraform"]
     state[("terraform.tfstate<br/>rendered manifests")]
@@ -119,7 +119,7 @@ sequenceDiagram
   P-->>U: diff per object
 
   Note over P,K: apply
-  P->>K: server-side apply (PATCH, field manager "Terraform")
+  P->>K: server-side apply (PATCH, field manager Terraform)
   K-->>P: accepted object
   P-->>U: state updated, output objects
   K->>K: controllers act on the object asynchronously (pods, nodes, NLB)
