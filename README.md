@@ -1,9 +1,8 @@
 # EKS LLM Lab
 
-Self-hosted LLM platform on Kubernetes (EKS) following the 2-Day Plan.
+Self-hosted LLM platform on Kubernetes (EKS).
 
 ## Overview
-By the end of Day 2 you will have:
 - An EKS cluster serving an open model through vLLM on a single NVIDIA L4 GPU.
 - A small RAG API behind Amazon API Gateway.
 - Dashboards showing latency, cost per million tokens, and node pool scaling.
@@ -46,7 +45,8 @@ Keep `gpu_node_pool.cpu_limit` within your G/VT vCPU quota, and `vllm_autoscalin
 limit fits (one GPU node per replica; two `g6.xlarge` with the default 8 vCPUs).
 
 Manifests in `02-apps/manifests/` are rendered with `templatefile()`: `.yaml.tftpl` files take values from the
-module calls in `02-apps/*.tf`. A literal `${` or `%{` in any manifest must be written `$${` / `%%{`.
+module calls in `02-apps/*.tf`. A literal `${` or `%{` in any manifest must be written `$${` / `%%{`. See
+[modules/k8s-manifests/README.md](modules/k8s-manifests/README.md) for how manifests are rendered and applied.
 
 ## Deploy
 Apply the stacks in order; each one needs the previous stacks' state.
@@ -97,7 +97,7 @@ kubectl -n llm annotate scaledobject vllm autoscaling.keda.sh/paused-replicas-  
 ```
 
 ## Cost Estimate
-- Plan ~$30-40 if GPU pool paused overnight.
+- The GPU node is the largest cost; pause it when idle (see above).
 - Spot g6.xlarge ~$0.35/h in us-east-1 (may be interrupted).
 
 ## Tear Down
