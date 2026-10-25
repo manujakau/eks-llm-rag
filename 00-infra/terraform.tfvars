@@ -15,9 +15,9 @@ endpoint_public_access = true # lab only: kubectl/helm from your laptop
 system_node_group = {
   ami_type       = "AL2023_x86_64_STANDARD"
   instance_types = ["m6i.large"]
-  min_size       = 2
-  max_size       = 3
-  desired_size   = 2
+  min_size       = 1
+  max_size       = 2
+  desired_size   = 1
 }
 
 # ECR
