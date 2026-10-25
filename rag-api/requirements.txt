@@ -1,2 +1,6 @@
-fastapi
-uvicorn[standard]
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+httpx==0.28.1
+openai==3.37.0
+qdrant-client==1.20.0  # keep within one minor of the Qdrant server (01-platform chart_versions.qdrant)
+prometheus-fastapi-instrumentator==8.1.0
