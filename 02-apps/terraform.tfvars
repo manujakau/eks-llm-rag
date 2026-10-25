@@ -18,7 +18,7 @@ vllm = {
 # To pause overnight, annotate the ScaledObject with autoscaling.keda.sh/paused-replicas: "0"
 vllm_autoscaling = {
   min_replicas    = 1
-  max_replicas    = 2 # one GPU per replica; gpu_node_pool.cpu_limit (8) fits two g6.xlarge
+  max_replicas    = 2 # one GPU per replica; gpu_node_pool.cpu_limit (8) fits two xlarge GPU nodes
   queue_threshold = 10
 }
 
@@ -31,7 +31,9 @@ node_class = {
 }
 
 gpu_node_pool = {
-  instance_families = ["g6"] # NVIDIA L4
+  # g4dn (T4 16 GB) is the cheapest spot GPU and has capacity in eu-central-1; g6 (L4 24 GB) is a fallback.
+  # Check with: aws ec2 get-spot-placement-scores --instance-types g4dn.xlarge g6.xlarge --target-capacity 1 ...
+  instance_families = ["g4dn", "g6"]
   instance_sizes    = ["xlarge"]
   capacity_types    = ["spot"] # "spot", "on-demand"; spot uses the "All G and VT Spot Instance Requests" quota
   # 8 vCPU = at most two xlarge nodes, matching vllm_autoscaling.max_replicas; with one replica running this
