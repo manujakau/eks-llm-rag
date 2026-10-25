@@ -17,4 +17,6 @@ resource "helm_release" "karpenter" {
       interruptionQueue = local.infra.karpenter_queue_name
     }
   })]
+
+  depends_on = [helm_release.lbc] # its Services go through the LB controller's webhook, which needs running pods
 }
