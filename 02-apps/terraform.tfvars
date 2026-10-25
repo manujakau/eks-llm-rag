@@ -33,13 +33,16 @@ node_class = {
 gpu_node_pool = {
   instance_families = ["g6"] # NVIDIA L4
   instance_sizes    = ["xlarge"]
-  capacity_types    = ["spot"] # "spot", "on-demand"
-  cpu_limit         = 8 # matches the 8 vCPU G/VT quota: at most two g6.xlarge
+  capacity_types    = ["spot"] # "spot", "on-demand"; spot uses the "All G and VT Spot Instance Requests" quota
+  # 8 vCPU = at most two xlarge nodes, matching vllm_autoscaling.max_replicas; with one replica running this
+  # leaves room for Karpenter's replace-before-remove, at two it waits until load drops
+  cpu_limit = 8
 }
 
 cpu_node_pool = {
   instance_categories = ["c", "m", "r"]
   capacity_types      = ["spot"] # "spot", "on-demand"
-  cpu_limit           = 100
-  memory_limit        = "256Gi"
+  # cost guard: workloads here request ~4 vCPU / 8Gi, so this is one node plus room for a replacement
+  cpu_limit    = 16
+  memory_limit = "64Gi"
 }
