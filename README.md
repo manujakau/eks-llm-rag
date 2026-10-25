@@ -3,7 +3,7 @@
 Self-hosted LLM platform on Kubernetes (EKS).
 
 ## Overview
-- An EKS cluster serving an open model through vLLM on a single NVIDIA L4 GPU.
+- An EKS cluster serving an open model through vLLM on a single spot GPU (NVIDIA T4 on g4dn, or L4 on g6).
 - A small RAG API behind Amazon API Gateway.
 - Dashboards showing latency, cost per million tokens, and node pool scaling.
 
@@ -15,7 +15,7 @@ All infrastructure is defined as Terraform, split into four small stacks applied
 Requests enter through API Gateway (API key, throttling, 29 s timeout), cross a VPC Link to an internal NLB, and
 reach `rag-api`, which embeds with TEI, retrieves from Qdrant and sends prompt plus context to vLLM on the GPU
 pool. Prometheus scrapes vLLM's and rag-api's `/metrics`; KEDA scales vLLM replicas on queue depth, and Karpenter
-adds a `g6` node when a GPU pod is pending.
+adds a GPU node (`g4dn`, or `g6` as fallback) when a GPU pod is pending.
 
 The diagram shows the target design. The TEI model is set by `tei_model` in `02-apps/terraform.tfvars`
 (currently `BAAI/bge-base-en-v1.5`), and OpenCost is not installed yet (see [Known Gaps](#known-gaps)).
@@ -29,7 +29,7 @@ llm-lab/
 ├── 01-platform/   # Helm charts: Karpenter, LB controller, device plugin, Prometheus, KEDA, Qdrant
 ├── 02-apps/       # manifests/{karpenter,llm,rag}: NodePools, vLLM, TEI, KEDA, alerts, rag-api
 ├── 03-gateway/    # API Gateway REST API, VPC Link, usage plan
-├── docs/          # architecture diagram
+├── docs/          # architecture diagram, troubleshooting guide
 └── rag-api/       # FastAPI source + Dockerfile
 ```
 
@@ -40,6 +40,9 @@ component) and reads the stacks before it through `terraform_remote_state`. Stat
 ## Prerequisites
 - Service Quotas of ≥8 vCPUs for G and VT instances, for the capacity type in `gpu_node_pool.capacity_types`
   (currently spot: "All G and VT Spot Instance Requests").
+- For spot node pools, the EC2 Spot service-linked role. Karpenter cannot create it, so in an account that has
+  never run spot instances create it once: `aws iam create-service-linked-role --aws-service-name spot.amazonaws.com`
+  (an "has been taken" error means it already exists).
 - Terraform 1.9+, AWS CLI v2, kubectl, helm, Docker with buildx, Python 3.12, jq.
 - Optional: Hugging Face token (model used is ungated).
 
@@ -55,7 +58,7 @@ types, descriptions and validation, with no defaults.
 | `03-gateway` | `api_name`, `stage_name`, `integration_timeout_ms`, `usage_plan` (throttle and daily quota) |
 
 Keep `gpu_node_pool.cpu_limit` within your G/VT vCPU quota, and `vllm_autoscaling.max_replicas` within what that
-limit fits (one GPU node per replica; two `g6.xlarge` with the default 8 vCPUs). Spot and On-Demand have separate
+limit fits (one GPU node per replica; two 4-vCPU `xlarge` nodes with the default 8 vCPUs). Spot and On-Demand have separate
 quotas ("All G and VT Spot Instance Requests" vs "Running On-Demand G and VT instances"), and new accounts often
 start with a Spot quota of 0; check it in Service Quotas before applying a spot-only `capacity_types`.
 
@@ -135,11 +138,14 @@ kubectl -n llm annotate scaledobject vllm autoscaling.keda.sh/paused-replicas-  
 
 ## Cost Estimate
 - The GPU node is the largest cost; pause it when idle (see above).
-- Spot g6.xlarge ~$0.35/h in eu-central-1 (may be interrupted).
+- GPU in eu-central-1: spot g4dn.xlarge ~$0.32/h, spot g6.xlarge ~$0.47/h (on-demand $0.66 / $1.01); spot may be
+  interrupted.
 - Fixed, whatever the GPU does: EKS control plane, NAT gateway, internal NLB, on-demand `m6i.large` system node
   and EBS, about $230/month; the spot CPU node adds about $50.
-- Rough totals with g6.xlarge spot: ~$540/month running 24/7, ~$410/month paused 12 h every night.
+- Rough totals with g4dn.xlarge spot: ~$510/month running 24/7, ~$400/month paused 12 h every night.
   Spot prices move; check with `aws ec2 describe-spot-price-history`.
+- g4dn's T4 has no BF16 (vLLM runs the model in FP16), about half the L4's prompt throughput and a smaller KV cache;
+  fine for a lab, use `g6` first for heavier concurrent load.
 
 ## Tear Down
 Destroy in reverse order:
@@ -151,6 +157,11 @@ kubectl get nodeclaims                 # wait until empty, or Karpenter's EC2 in
 terraform -chdir=01-platform destroy
 terraform -chdir=00-infra destroy
 ```
+
+## Troubleshooting
+See [docs/troubleshooting.md](docs/troubleshooting.md): connecting with kubectl/helm, Helm releases failing on the
+LB controller webhook, failed releases left behind, namespaces stuck in `Terminating`, a GPU pod stuck `Pending`,
+and finding orphaned AWS resources.
 
 ## Known Gaps
 - The gateway proxies every path, so any API key holder can also call `/ingest` and read `/metrics`.
