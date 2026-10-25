@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: llm
+  labels: { app: vllm }
+spec:
+  # no replicas field: KEDA owns it, and Terraform would keep resetting it
+  strategy: { type: Recreate }
+
+  # one GPU per node; a rolling update would need two
+  selector: { matchLabels: { app: vllm } }
+  template:
+    metadata:
+      labels: { app: vllm }
+    spec:
+      nodeSelector: { karpenter.sh/nodepool: gpu }
+      tolerations:
+        - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+      containers:
+        - name: vllm
+          image: ${vllm_image}
+          args:
+            - --model=${vllm.model}
+            - --served-model-name=${vllm.served_model_name}
+            - --max-model-len=${vllm.max_model_len}
+            - --gpu-memory-utilization=${vllm.gpu_memory_utilization}
+            - --max-num-seqs=${vllm.max_num_seqs}
+          env:
+            - { name: HF_HOME, value: /models }
+          ports:
+            - { name: http, containerPort: 8000 }
+          resources:
+            # quote quantities:
+            requests: { cpu: "3", memory: "12Gi", nvidia.com/gpu: "1" }
+            limits: { memory: "14Gi", nvidia.com/gpu: "1" }
+          startupProbe:
+            # allows ~15 min for weight download
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+          volumeMounts:
+            - { name: models, mountPath: /models }
+            - { name: dshm, mountPath: /dev/shm }
+      volumes:
+        - { name: models, emptyDir: {} }
+        - { name: dshm, emptyDir: { medium: Memory, sizeLimit: 2Gi } }
