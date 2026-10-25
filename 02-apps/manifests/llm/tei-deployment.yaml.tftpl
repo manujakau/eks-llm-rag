@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tei
+  namespace: llm
+  labels: { app: tei }
+spec:
+  selector: { matchLabels: { app: tei } }
+  template:
+    metadata:
+      labels: { app: tei }
+    spec:
+      containers:
+        - name: tei
+          image: ${tei_image}
+          env:
+            - { name: MODEL_ID, value: "${tei_model}" }
+            - { name: PORT, value: "8080" }
+          ports:
+            - { name: http, containerPort: 8080 }
+          resources:
+            requests: { cpu: "2", memory: "4Gi" }
+            limits: { cpu: "4", memory: "8Gi" }
