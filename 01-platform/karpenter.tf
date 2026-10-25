@@ -8,6 +8,9 @@ resource "helm_release" "karpenter" {
   namespace  = "kube-system"
 
   values = [yamlencode({
+    # the chart's required anti-affinity allows one replica per system node, and 00-infra runs one;
+    # a second replica would stay Pending
+    replicas       = 1
     serviceAccount = { name = local.infra.karpenter_service_account }
     settings = {
       clusterName       = local.cluster
