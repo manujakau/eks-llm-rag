@@ -1,0 +1,16 @@
+# Internal NLB; 03-gateway looks it up by name (02-apps output nlb_name) for the VPC Link
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-api
+  namespace: rag
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-name: ${nlb_name}
+spec:
+  type: LoadBalancer
+  selector: { app: rag-api }
+  ports:
+    - { name: http, port: 80, targetPort: http }
