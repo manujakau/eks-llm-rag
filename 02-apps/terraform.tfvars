@@ -33,13 +33,13 @@ node_class = {
 gpu_node_pool = {
   instance_families = ["g6"] # NVIDIA L4
   instance_sizes    = ["xlarge"]
-  capacity_types    = ["spot", "on-demand"]
+  capacity_types    = ["spot"] # "spot", "on-demand"
   cpu_limit         = 8 # matches the 8 vCPU G/VT quota: at most two g6.xlarge
 }
 
 cpu_node_pool = {
   instance_categories = ["c", "m", "r"]
-  capacity_types      = ["spot", "on-demand"]
+  capacity_types      = ["spot"] # "spot", "on-demand"
   cpu_limit           = 100
   memory_limit        = "256Gi"
 }
