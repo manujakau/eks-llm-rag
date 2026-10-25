@@ -6,5 +6,6 @@ resource "helm_release" "qdrant" {
   version    = var.chart_versions.qdrant
   namespace  = kubernetes_namespace_v1.ns["rag"].metadata[0].name
 
-  depends_on = [kubernetes_storage_class_v1.gp3]
+  # lbc: its Services go through the LB controller's webhook, which needs running pods
+  depends_on = [kubernetes_storage_class_v1.gp3, helm_release.lbc]
 }
