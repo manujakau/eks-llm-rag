@@ -62,7 +62,7 @@ variable "node_class" {
 }
 
 variable "gpu_node_pool" {
-  description = "GPU NodePool; cpu_limit caps total vCPUs and should match your G/VT instance quota"
+  description = "GPU NodePool; cpu_limit caps total vCPUs and should fit your G/VT quota (Spot and On-Demand quotas are separate)"
   type = object({
     instance_families = list(string)
     instance_sizes    = list(string)
