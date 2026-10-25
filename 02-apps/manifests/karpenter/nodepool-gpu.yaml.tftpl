@@ -1,0 +1,30 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu
+spec:
+  template:
+    metadata:
+      labels:
+        nvidia.com/gpu.present: "true" # lets the NVIDIA device plugin DaemonSet schedule here
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      taints:
+        - key: nvidia.com/gpu # only pods that tolerate this (vLLM) land on GPU nodes
+          value: "true"
+          effect: NoSchedule
+      requirements:
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ${jsonencode(gpu.instance_families)}
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ${jsonencode(gpu.instance_sizes)}
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ${jsonencode(gpu.capacity_types)}
+  limits:
+    cpu: "${gpu.cpu_limit}"
