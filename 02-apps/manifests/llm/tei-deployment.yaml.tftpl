@@ -18,6 +18,15 @@ spec:
             - { name: PORT, value: "8080" }
           ports:
             - { name: http, containerPort: 8080 }
+          # TEI downloads the model before it listens; keep it out of the Service until then.
+          # API-server defaults are spelled out: kubernetes_manifest fails ("inconsistent result after apply")
+          # when a block added to an existing object comes back with fields it did not plan
+          readinessProbe:
+            httpGet: { path: /health, port: http, scheme: HTTP }
+            periodSeconds: 5
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
           resources:
             requests: { cpu: "2", memory: "4Gi" }
             limits: { cpu: "4", memory: "8Gi" }
