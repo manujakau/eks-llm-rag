@@ -14,8 +14,8 @@ All infrastructure is defined as Terraform, split into four small stacks applied
 
 Requests enter through API Gateway (API key, throttling, 29 s timeout), cross a VPC Link to an internal NLB, and
 reach `rag-api`, which embeds with TEI, retrieves from Qdrant and sends prompt plus context to vLLM on the GPU
-pool. Prometheus scrapes vLLM's `/metrics`; KEDA scales vLLM replicas on queue depth, and Karpenter adds a `g6`
-node when a GPU pod is pending.
+pool. Prometheus scrapes vLLM's and rag-api's `/metrics`; KEDA scales vLLM replicas on queue depth, and Karpenter
+adds a `g6` node when a GPU pod is pending.
 
 The diagram shows the target design. The TEI model is set by `tei_model` in `02-apps/terraform.tfvars`
 (currently `BAAI/bge-base-en-v1.5`), and OpenCost is not installed yet (see [Known Gaps](#known-gaps)).
@@ -38,7 +38,8 @@ component) and reads the stacks before it through `terraform_remote_state`. Stat
 (`<stack>/terraform.tfstate`), so run every stack from the same checkout.
 
 ## Prerequisites
-- Service Quotas increased for Running On-Demand G and VT instances (≥8 vCPUs).
+- Service Quotas of ≥8 vCPUs for G and VT instances, for the capacity type in `gpu_node_pool.capacity_types`
+  (currently spot: "All G and VT Spot Instance Requests").
 - Terraform 1.9+, AWS CLI v2, kubectl, helm, Docker with buildx, Python 3.12, jq.
 - Optional: Hugging Face token (model used is ungated).
 
@@ -96,6 +97,9 @@ aws eks update-kubeconfig --name "$(terraform -chdir=00-infra output -raw cluste
 
 vLLM's first start downloads the model weights and can take up to ~15 minutes (`kubectl -n llm get pods -w`).
 
+Re-pushing the same `rag_api_image_tag` does not change the Deployment, so Terraform will not roll it; run
+`kubectl -n rag rollout restart deploy/rag-api`, or push a new tag and set `rag_api_image_tag`.
+
 ## Use the API
 Every request needs the API key from the usage plan.
 
@@ -114,7 +118,11 @@ curl -s "$URL/ask" -H "x-api-key: $KEY" -H 'Content-Type: application/json' \
   -d '{"question": "Which hardware does vLLM support?"}' | jq
 ```
 
-`/ask` returns 404 until something is ingested, 503 while vLLM is paused or starting, and 502 if TEI is down.
+`/ask` returns 404 until something is ingested, 503 while vLLM is paused or starting, 504 if vLLM takes over 25 s,
+and 502 if TEI is down.
+
+To test inside the cluster without the gateway: `kubectl -n rag port-forward svc/rag-api 8080:80`, then use
+`localhost:8080` without the API key.
 
 ## Pause the GPU overnight
 vLLM never scales below `vllm_autoscaling.min_replicas` (1) on its own. To stop paying for the GPU node, pause
@@ -128,6 +136,10 @@ kubectl -n llm annotate scaledobject vllm autoscaling.keda.sh/paused-replicas-  
 ## Cost Estimate
 - The GPU node is the largest cost; pause it when idle (see above).
 - Spot g6.xlarge ~$0.35/h in us-east-1 (may be interrupted).
+- Fixed, whatever the GPU does: EKS control plane, NAT gateway, internal NLB, on-demand `m6i.large` system node
+  and EBS, about $230/month; the spot CPU node adds about $50.
+- Rough totals with g6.xlarge spot: ~$540/month running 24/7, ~$410/month paused 12 h every night.
+  Spot prices move; check with `aws ec2 describe-spot-price-history`.
 
 ## Tear Down
 Destroy in reverse order:
