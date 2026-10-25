@@ -5,6 +5,9 @@ metadata:
   namespace: rag
   labels: { app: rag-api }
 spec:
+  # kube-scheduler spreads the two across nodes when there is room; not enforced, because Karpenter honours
+  # spread preferences by launching nodes, and a node just for spread would cost more than it saves
+  replicas: 2
   selector: { matchLabels: { app: rag-api } }
   template:
     metadata:
@@ -17,9 +20,11 @@ spec:
             - { name: VLLM_URL, value: "${vllm_url}" }
             - { name: TEI_URL, value: "${tei_url}" }
             - { name: QDRANT_URL, value: "${qdrant_url}" }
+            - { name: MODEL, value: "${model}" }
           ports:
-            - { name: http, containerPort: 80 }
+            - { name: http, containerPort: 8080 }
           readinessProbe:
             httpGet: { path: /health, port: http }
           resources:
-            requests: { cpu: 250m, memory: 256Mi }
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 512Mi }
