@@ -1,0 +1,18 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: vllm
+  namespace: llm
+spec:
+  scaleTargetRef:
+    name: vllm
+  minReplicaCount: ${autoscaling.min_replicas}
+  maxReplicaCount: ${autoscaling.max_replicas}
+  cooldownPeriod: 300
+  pollingInterval: 15
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: ${prometheus_url}
+        threshold: "${autoscaling.queue_threshold}"
+        query: "sum(vllm:num_requests_waiting{namespace=\"llm\"})"
