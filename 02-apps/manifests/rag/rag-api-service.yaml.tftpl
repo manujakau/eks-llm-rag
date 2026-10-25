@@ -4,6 +4,7 @@ kind: Service
 metadata:
   name: rag-api
   namespace: rag
+  labels: { app: rag-api } # matched by rag-api-servicemonitor
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: external
     service.beta.kubernetes.io/aws-load-balancer-scheme: internal
