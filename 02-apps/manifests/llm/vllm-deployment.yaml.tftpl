@@ -14,6 +14,9 @@ spec:
     metadata:
       labels: { app: vllm }
     spec:
+      # the Service named vllm would inject VLLM_PORT=tcp://<ip>:8000, which vLLM reads as its own setting and
+      # refuses to start ("VLLM_PORT ... appears to be a URI")
+      enableServiceLinks: false
       nodeSelector: { karpenter.sh/nodepool: gpu }
       tolerations:
         - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
@@ -21,7 +24,7 @@ spec:
         - name: vllm
           image: ${vllm_image}
           args:
-            - --model=${vllm.model}
+            - ${vllm.model} # positional: the image runs `vllm serve`, which deprecates --model
             - --served-model-name=${vllm.served_model_name}
             - --max-model-len=${vllm.max_model_len}
             - --gpu-memory-utilization=${vllm.gpu_memory_utilization}
