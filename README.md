@@ -54,7 +54,13 @@ types, descriptions and validation, with no defaults.
 | `03-gateway` | `api_name`, `stage_name`, `integration_timeout_ms`, `usage_plan` (throttle and daily quota) |
 
 Keep `gpu_node_pool.cpu_limit` within your G/VT vCPU quota, and `vllm_autoscaling.max_replicas` within what that
-limit fits (one GPU node per replica; two `g6.xlarge` with the default 8 vCPUs).
+limit fits (one GPU node per replica; two `g6.xlarge` with the default 8 vCPUs). Spot and On-Demand have separate
+quotas ("All G and VT Spot Instance Requests" vs "Running On-Demand G and VT instances"), and new accounts often
+start with a Spot quota of 0; check it in Service Quotas before applying a spot-only `capacity_types`.
+
+The system node group runs one node, and Karpenter runs one replica on it (its chart requires one replica per
+non-Karpenter node). Change the group's size with `min_size`/`max_size`: the EKS module ignores later
+`desired_size` changes.
 
 Manifests in `02-apps/manifests/` are rendered with `templatefile()`: `.yaml.tftpl` files take values from the
 module calls in `02-apps/*.tf`. A literal `${` or `%{` in any manifest must be written `$${` / `%%{`. See
@@ -97,7 +103,18 @@ Every request needs the API key from the usage plan.
 URL=$(terraform -chdir=03-gateway output -raw invoke_url)
 KEY=$(terraform -chdir=03-gateway output -raw api_key)
 curl -H "x-api-key: $KEY" "$URL/health"
+
+# Ingest: each document is split into 800-char chunks; re-ingesting a source replaces its chunks
+curl -sL https://raw.githubusercontent.com/vllm-project/vllm/main/README.md -o vllm.md
+jq -n --rawfile t vllm.md '[{source: "vllm-readme", text: $t}]' |
+  curl -s "$URL/ingest" -H "x-api-key: $KEY" -H 'Content-Type: application/json' -d @-
+
+# Ask: answers only from the top_k (default 4, max 20) closest chunks; sources[n-1] is citation [n]
+curl -s "$URL/ask" -H "x-api-key: $KEY" -H 'Content-Type: application/json' \
+  -d '{"question": "Which hardware does vLLM support?"}' | jq
 ```
+
+`/ask` returns 404 until something is ingested, 503 while vLLM is paused or starting, and 502 if TEI is down.
 
 ## Pause the GPU overnight
 vLLM never scales below `vllm_autoscaling.min_replicas` (1) on its own. To stop paying for the GPU node, pause
@@ -124,6 +141,6 @@ terraform -chdir=00-infra destroy
 ```
 
 ## Known Gaps
-- `rag-api` is a stub (`/` and `/health` only); retrieval and generation are not implemented yet.
+- The gateway proxies every path, so any API key holder can also call `/ingest` and read `/metrics`.
 - The cost-per-million-tokens recording rule in `llm-rules.yaml` reads `node_total_hourly_cost`, which comes from
   OpenCost; OpenCost is not installed yet, so that metric and dashboard stay empty.
