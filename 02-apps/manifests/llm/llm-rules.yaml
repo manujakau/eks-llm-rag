@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: llm-rules
+  namespace: llm
+spec:
+  groups:
+    - name: vllm-alerts
+      rules:
+        - alert: VllmDown
+          expr: absent(up{namespace="llm", service="vllm"} == 1)
+          for: 5m
+        - alert: VllmQueueBacklog
+          expr: sum(vllm:num_requests_waiting) > 10
+          for: 5m
+        - alert: VllmKvCacheFull
+          expr: avg(vllm:kv_cache_usage_perc) > 0.95
+          for: 10m
+        - alert: GpuIdleButPaidFor
+          expr: sum(rate(vllm:generation_tokens_total[30m])) == 0
+          for: 30m
+    - name: llm-cost
+      rules:
+        - record: llm:gpu_node_hourly_cost:usd
+          expr: sum(node_total_hourly_cost{instance_type=~"g6.*"})
+        - record: llm:usd_per_million_output_tokens
+          expr: |
+            llm:gpu_node_hourly_cost:usd
+            / (sum(rate(vllm:generation_tokens_total[15m])) * 3600) * 1e6
