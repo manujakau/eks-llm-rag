@@ -50,7 +50,7 @@ variable "endpoint_public_access" {
 }
 
 variable "system_node_group" {
-  description = "Always-on managed node group for system pods and the Karpenter controller"
+  description = "Always-on managed node group for system pods and the Karpenter controller; desired_size is only read at creation"
   type = object({
     ami_type       = string
     instance_types = list(string)
