@@ -135,7 +135,7 @@ kubectl -n llm annotate scaledobject vllm autoscaling.keda.sh/paused-replicas-  
 
 ## Cost Estimate
 - The GPU node is the largest cost; pause it when idle (see above).
-- Spot g6.xlarge ~$0.35/h in us-east-1 (may be interrupted).
+- Spot g6.xlarge ~$0.35/h in eu-central-1 (may be interrupted).
 - Fixed, whatever the GPU does: EKS control plane, NAT gateway, internal NLB, on-demand `m6i.large` system node
   and EBS, about $230/month; the spot CPU node adds about $50.
 - Rough totals with g6.xlarge spot: ~$540/month running 24/7, ~$410/month paused 12 h every night.

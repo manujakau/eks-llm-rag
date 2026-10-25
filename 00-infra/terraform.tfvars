@@ -1,5 +1,5 @@
 name   = "llm-lab"
-region = "us-east-1"
+region = "eu-central-1"
 tags   = { Project = "llm-lab" }
 
 # VPC
@@ -9,7 +9,7 @@ public_subnets     = ["10.0.96.0/22", "10.0.100.0/22", "10.0.104.0/22"]
 single_nat_gateway = true # lab only: one NAT for all AZs
 
 # EKS
-kubernetes_version     = null # EKS default; pin e.g. "1.34" to control upgrades
+kubernetes_version     = "1.37" # EKS default; pin e.g. null, "1.37" to control upgrades
 endpoint_public_access = true # lab only: kubectl/helm from your laptop
 
 system_node_group = {
