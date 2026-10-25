@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-api
+  namespace: rag
+  labels: { app: rag-api }
+spec:
+  selector: { matchLabels: { app: rag-api } }
+  template:
+    metadata:
+      labels: { app: rag-api }
+    spec:
+      containers:
+        - name: rag-api
+          image: ${image}
+          env:
+            - { name: VLLM_URL, value: "${vllm_url}" }
+            - { name: TEI_URL, value: "${tei_url}" }
+            - { name: QDRANT_URL, value: "${qdrant_url}" }
+          ports:
+            - { name: http, containerPort: 80 }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
