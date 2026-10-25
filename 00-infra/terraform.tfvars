@@ -15,9 +15,11 @@ endpoint_public_access = true # lab only: kubectl/helm from your laptop
 system_node_group = {
   ami_type       = "AL2023_x86_64_STANDARD"
   instance_types = ["m6i.large"]
-  min_size       = 1
-  max_size       = 2
-  desired_size   = 1
+  # one node: nothing autoscales this group (Karpenter only manages its own nodes); EKS adds surge nodes for upgrades.
+  # desired_size only applies at creation, the EKS module ignores later changes; resize by changing min/max_size
+  min_size     = 1
+  max_size     = 1
+  desired_size = 1
 }
 
 # ECR
