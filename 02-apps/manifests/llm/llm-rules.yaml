@@ -21,8 +21,15 @@ spec:
           for: 30m
     - name: llm-cost
       rules:
+        # Karpenter's price estimate (spot price history or on-demand list price) for each running GPU node;
+        # 0 rather than empty while no GPU node runs
         - record: llm:gpu_node_hourly_cost:usd
-          expr: sum(node_total_hourly_cost{instance_type=~"g6.*"})
+          expr: |
+            sum(
+              max by (instance_type, capacity_type, zone) (karpenter_cloudprovider_instance_type_offering_price_estimate)
+              * on (instance_type, capacity_type, zone)
+              count by (instance_type, capacity_type, zone) (karpenter_nodes_allocatable{nodepool="gpu", resource_type="cpu"})
+            ) or vector(0)
         - record: llm:usd_per_million_output_tokens
           expr: |
             llm:gpu_node_hourly_cost:usd
