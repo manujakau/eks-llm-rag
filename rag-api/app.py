@@ -17,7 +17,9 @@ MODEL = os.getenv("MODEL", "qwen3-4b")              # vLLM --served-model-name
 COLLECTION = os.getenv("COLLECTION", "docs")        # vector size comes from TEI's output, not a constant
 
 app = FastAPI(title="rag-api")
-Instrumentator().instrument(app).expose(app)        # serves /metrics
+# serves /metrics; per-handler latency buckets reach 60 s (default stops at 1 s, which caps /ask's p95)
+Instrumentator().instrument(
+    app, latency_lowr_buckets=(0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60)).expose(app)
 qdrant = QdrantClient(url=QDRANT_URL)
 # no retries: one 25 s attempt stays under API Gateway's 29 s; the SDK's default 2 retries would not
 llm = OpenAI(base_url=VLLM_URL, api_key="not-needed", timeout=25, max_retries=0)
