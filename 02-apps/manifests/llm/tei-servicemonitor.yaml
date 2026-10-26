@@ -1,0 +1,9 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tei
+  namespace: llm
+spec:
+  selector: { matchLabels: { app: tei } }
+  endpoints:
+    - { port: http, path: /metrics, interval: 15s }

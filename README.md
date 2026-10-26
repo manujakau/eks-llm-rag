@@ -18,7 +18,8 @@ pool. Prometheus scrapes vLLM's and rag-api's `/metrics`; KEDA scales vLLM repli
 adds a GPU node (`g4dn`, or `g6` as fallback) when a GPU pod is pending.
 
 The diagram shows the target design. The TEI model is set by `tei_model` in `02-apps/terraform.tfvars`
-(currently `BAAI/bge-base-en-v1.5`), and OpenCost is not installed yet (see [Known Gaps](#known-gaps)).
+(currently `BAAI/bge-base-en-v1.5`), and OpenCost is not installed: GPU cost comes from Karpenter's price
+estimates instead (see [Dashboard](#dashboard)).
 
 ## Repository Layout
 ```
@@ -127,6 +128,25 @@ and 502 if TEI is down.
 To test inside the cluster without the gateway: `kubectl -n rag port-forward svc/rag-api 8080:80`, then use
 `localhost:8080` without the API key.
 
+## Dashboard
+Grafana (from kube-prometheus-stack) is only reachable inside the cluster; open it with a port-forward:
+
+```bash
+kubectl -n monitoring get secret kube-prometheus-stack-grafana -o jsonpath='{.data.admin-password}' | base64 -d; echo
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
+```
+
+Log in at http://localhost:3000 as `admin` with that password, then open **Dashboards → LLM / RAG**. It has rows
+for vLLM serving and latency, the RAG API, TEI embeddings, pod CPU/memory and GPU cost. It is defined in
+`02-apps/dashboards/llm-rag.json` and loaded by `02-apps/observability.tf`; it is provisioned, so Grafana does not
+keep edits made in its UI. The JSON is generated: change `02-apps/dashboards/gen_dashboard.py`, run
+`python3 02-apps/dashboards/gen_dashboard.py` to rewrite `llm-rag.json`, then re-apply `02-apps`. The KEDA threshold
+line is filled in from `vllm_autoscaling.queue_threshold` at apply time.
+
+GPU cost (`llm:gpu_node_hourly_cost:usd` in `02-apps/manifests/llm/llm-rules.yaml`) is Karpenter's price estimate
+for each running GPU node's instance type, capacity type and zone; for spot that follows the spot price history,
+not the exact bill. The vLLM and cost panels stay empty while no GPU node is running.
+
 ## Pause the GPU overnight
 vLLM never scales below `vllm_autoscaling.min_replicas` (1) on its own. To stop paying for the GPU node, pause
 KEDA at zero replicas; Karpenter then removes the empty node:
@@ -165,5 +185,3 @@ and finding orphaned AWS resources.
 
 ## Known Gaps
 - The gateway proxies every path, so any API key holder can also call `/ingest` and read `/metrics`.
-- The cost-per-million-tokens recording rule in `llm-rules.yaml` reads `node_total_hourly_cost`, which comes from
-  OpenCost; OpenCost is not installed yet, so that metric and dashboard stay empty.

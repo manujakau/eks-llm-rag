@@ -16,7 +16,20 @@ resource "helm_release" "karpenter" {
       clusterName       = local.cluster
       interruptionQueue = local.infra.karpenter_queue_name
     }
+    # feeds llm:gpu_node_hourly_cost:usd (02-apps llm-rules.yaml). Karpenter exposes ~32k series, ~10k of them
+    # prices for every instance type; keep spot g4dn/g6 prices and the CPU-allocatable series of GPU nodes,
+    # which carry each node's instance_type, capacity_type and zone (a few dozen series in all)
+    serviceMonitor = {
+      enabled = true
+      metricRelabelings = [{
+        action       = "keep"
+        sourceLabels = ["__name__", "instance_type", "capacity_type", "nodepool", "resource_type"]
+        regex        = "karpenter_cloudprovider_instance_type_offering_price_estimate;(g4dn|g6)\\..*;spot;;|karpenter_nodes_allocatable;.*;.*;gpu;cpu"
+      }]
+    }
   })]
 
-  depends_on = [helm_release.lbc] # its Services go through the LB controller's webhook, which needs running pods
+  # its Services go through the LB controller's webhook, which needs running pods; the chart only renders the
+  # ServiceMonitor when the Prometheus Operator CRDs already exist
+  depends_on = [helm_release.lbc, helm_release.kube_prometheus_stack]
 }
